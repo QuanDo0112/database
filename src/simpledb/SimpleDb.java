@@ -273,6 +273,7 @@ public class SimpleDb {
 
         if (args.length == 0) {
             customTests();
+            System.out.println("Did custom tests");
             System.exit(1);
         }
         
