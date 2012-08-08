@@ -38,10 +38,10 @@ public class HashEquiJoin extends Operator {
         map.clear();
         while (child1.hasNext()) {
             t1 = child1.next();
-            ArrayList<Tuple> list = map.get(t1.getField(pred.field1));
+            ArrayList<Tuple> list = map.get(t1.getField(pred._leftField));
             if (list == null) {
                 list = new ArrayList<Tuple>();
-                map.put(t1.getField(pred.field1), list);
+                map.put(t1.getField(pred._leftField), list);
             }
             list.add( t1);
             if (cnt ++ == MAP_SIZE)
@@ -116,7 +116,7 @@ public class HashEquiJoin extends Operator {
 
             // if match, create a combined tuple and fill it with the values
             // from both tuples
-            ArrayList<Tuple> l = map.get(t2.getField(pred.field2));
+            ArrayList<Tuple> l = map.get(t2.getField(pred._rightField));
             if (l == null)
                 continue;
             listIt = l.iterator();

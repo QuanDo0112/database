@@ -5,8 +5,8 @@ package simpledb;
  * JoinPredicate is most likely used by the Join operator.
  */
 public class JoinPredicate {
-	private int _leftField;
-	private int _rightField;
+	public int _leftField;
+	public int _rightField;
 	private Predicate.Op _op;
 	
     /**

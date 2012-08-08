@@ -253,11 +253,55 @@ public class SimpleDb {
 			System.out.println("Error running transaction test");
 		}
 	}
+	
+	public static void histogramTests() {
+
+		IntHistogram h = new IntHistogram(10, -60, -10);
+		h.addValue(-10);
+
+		// All of the values here are negative.
+		// Also, there are more of them than there are bins.
+		for (int c = -60; c <= -10; c++) {
+			h.addValue(c);
+			h.estimateSelectivity(Predicate.Op.EQUALS, c);
+		}
+		double result = h.estimateSelectivity(Predicate.Op.EQUALS, -33);
+		System.out.println("Estiatimg selectivity: " + result);
+		// Even with just 10 bins and 50 values,
+		// the selectivity for this particular value should be at most 0.2.
+		TestUtil.assertTrue(h.estimateSelectivity(Predicate.Op.EQUALS, -33) < 0.3);
+
+		// And it really shouldn't be 0.
+		// Though, it could easily be as low as 0.02, seeing as that's
+		// the fraction of elements that actually are equal to -33.
+		TestUtil.assertTrue(h.estimateSelectivity(Predicate.Op.EQUALS, -33) > 0.001);
+	}
+	
+	public static void greaterHistogramTest() {
+	    IntHistogram h = new IntHistogram(10, 1, 10);
+
+	    // Set some values
+	    h.addValue(3);
+	    h.addValue(3);
+	    h.addValue(3);
+	    h.addValue(1);
+	    h.addValue(10);
+
+	    // Be conservative in case of alternate implementations
+	    //TestUtil.assertTrue(h.estimateSelectivity(Predicate.Op.LESS_THAN_OR_EQ, -1) < 0.001);
+	    //TestUtil.assertTrue(h.estimateSelectivity(Predicate.Op.LESS_THAN_OR_EQ, 2) < 0.4);
+	    TestUtil.assertTrue(h.estimateSelectivity(Predicate.Op.LESS_THAN_OR_EQ, 3) > 0.45);
+	    
+	    //TestUtil.assertTrue(h.estimateSelectivity(Predicate.Op.LESS_THAN_OR_EQ, 4) > 0.6);
+	    //TestUtil.assertTrue(h.estimateSelectivity(Predicate.Op.LESS_THAN_OR_EQ, 12) > 0.999);
+	}
 
     public static void customTests() {
     	try {
     		SimpleDb simpledb = new SimpleDb();
-    		simpledb.transactionTest();
+    		//simpledb.transactionTest();
+    		//simpledb.histogramTests();
+    		simpledb.greaterHistogramTest();
     		//simpledb.deadlockTest();
     		//simpledb.abortEvictText();
     	} catch (Exception e) {
