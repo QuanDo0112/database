@@ -66,4 +66,8 @@ public class StringHistogram {
         int val = stringToInt(s);
         return hist.estimateSelectivity(op, val);
     }
+    
+    public int valueCount() {
+    	return hist.valueCount();
+    }
 }

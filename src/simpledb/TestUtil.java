@@ -19,6 +19,14 @@ public class TestUtil {
 	static void assertEquals(Object o, Object r) {
 		assert (o.equals(r));
 	}
+	
+	static void assertEquals(double expected, double actual, double delta) {
+		double low = expected - delta;
+		double high = expected + delta;
+		assert (actual >= low);
+		assert (actual <= high);
+		//Assert.assertEquals(expected, actual, delta);
+	}
 
 	static void assertEquals(TupleDesc left, TupleDesc right) {
 		assert(left.equals(right));

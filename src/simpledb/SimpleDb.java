@@ -295,15 +295,22 @@ public class SimpleDb {
 	    //TestUtil.assertTrue(h.estimateSelectivity(Predicate.Op.LESS_THAN_OR_EQ, 4) > 0.6);
 	    //TestUtil.assertTrue(h.estimateSelectivity(Predicate.Op.LESS_THAN_OR_EQ, 12) > 0.999);
 	}
+	
+	public void tableStatsTests() {
+		TableStatsCustomTest test = new TableStatsCustomTest();
+		try {
+			test.setUp();
+			test.estimateSelectivityTest();
+			test.estimateTableCardinalityTest();
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+	}
 
     public static void customTests() {
     	try {
     		SimpleDb simpledb = new SimpleDb();
-    		//simpledb.transactionTest();
-    		//simpledb.histogramTests();
-    		simpledb.greaterHistogramTest();
-    		//simpledb.deadlockTest();
-    		//simpledb.abortEvictText();
+    		simpledb.tableStatsTests();
     	} catch (Exception e) {
     		System.out.println("WTF exception");
     		e.printStackTrace();

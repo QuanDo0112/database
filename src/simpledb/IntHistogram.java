@@ -110,7 +110,7 @@ public class IntHistogram {
     	_buckets[index] = newValue;
     }
     
-    private int valueCount() {
+    public int valueCount() {
     	int sum = 0;
     	for (int i = 0; i < _buckets.length; i++) {
     		sum += _buckets[i];
@@ -197,7 +197,6 @@ public class IntHistogram {
      * @return A string describing this histogram, for debugging purposes
      */
     public String toString() {
-
         // some code goes here
     	assert (false);
         return null;
