@@ -1,5 +1,6 @@
 package simpledb;
 
+import java.text.ParseException;
 import java.util.*;
 import java.io.*;
 
@@ -296,6 +297,150 @@ public class SimpleDb {
 	    //TestUtil.assertTrue(h.estimateSelectivity(Predicate.Op.LESS_THAN_OR_EQ, 12) > 0.999);
 	}
 	
+	public void joinOptimizer() 
+	throws TransactionAbortedException, ParseException, DbException, IOException, ParsingException
+	{
+		  // This test is intended to approximate the join described in the
+	    // "Query Planning" section of 2009 Quiz 1,
+	    // though with some minor variation due to limitations in simpledb
+	    // and to only test your integer-heuristic code rather than
+	    // string-heuristic code.
+
+	    final int IO_COST = 101;
+
+	    // Create a whole bunch of variables that we're going to use
+	    TransactionId tid = new TransactionId();
+	    JoinOptimizer j;
+	    Vector<LogicalJoinNode> result;
+	    Vector<LogicalJoinNode> nodes = new Vector<LogicalJoinNode>();
+	    HashMap<String, TableStats> stats = new HashMap<String, TableStats>();
+	    HashMap<String, Double> filterSelectivities = new HashMap<String, Double>();
+
+	    // Create all of the tables, and add them to the catalog
+	    ArrayList<ArrayList<Integer>> empTuples = new ArrayList<ArrayList<Integer>>();
+	    HeapFile emp = SystemTestUtil.createRandomHeapFile(6, 100000, null, empTuples, "c");  
+	    Database.getCatalog().addTable(emp, "emp");
+
+	    ArrayList<ArrayList<Integer>> deptTuples = new ArrayList<ArrayList<Integer>>();
+	    HeapFile dept = SystemTestUtil.createRandomHeapFile(3, 1000, null, deptTuples, "c");  
+	    Database.getCatalog().addTable(dept, "dept");
+
+	    ArrayList<ArrayList<Integer>> hobbyTuples = new ArrayList<ArrayList<Integer>>();
+	    HeapFile hobby = SystemTestUtil.createRandomHeapFile(6, 1000, null, hobbyTuples, "c");
+	    Database.getCatalog().addTable(hobby, "hobby");
+
+	    ArrayList<ArrayList<Integer>> hobbiesTuples = new ArrayList<ArrayList<Integer>>();
+	    HeapFile hobbies = SystemTestUtil.createRandomHeapFile(2, 200000, null, hobbiesTuples, "c");
+	    Database.getCatalog().addTable(hobbies, "hobbies");
+
+	    // Get TableStats objects for each of the tables that we just generated.
+	    stats.put("emp", new TableStats(Database.getCatalog().getTableId("emp"), IO_COST));
+	    stats.put("dept", new TableStats(Database.getCatalog().getTableId("dept"), IO_COST));
+	    stats.put("hobby", new TableStats(Database.getCatalog().getTableId("hobby"), IO_COST));
+	    stats.put("hobbies", new TableStats(Database.getCatalog().getTableId("hobbies"), IO_COST));
+	    
+	    // Note that your code shouldn't re-compute selectivities.
+	    // If you get statistics numbers, even if they're wrong (which they are here
+	    // because the data is random), you should use the numbers that you are given.
+	    // Re-computing them at runtime is generally too expensive for complex queries.
+	    filterSelectivities.put("emp", 0.1);
+	    filterSelectivities.put("dept", 1.0);
+	    filterSelectivities.put("hobby", 1.0);
+	    filterSelectivities.put("hobbies", 1.0);
+
+	    // Note that there's no particular guarantee that the LogicalJoinNode's will be in
+	    // the same order as they were written in the query.
+	    // They just have to be in an order that uses the same operators and 
+	    // semantically means the same thing.
+	    nodes.add(new LogicalJoinNode("hobbies", "hobby", "c1", "c0", Predicate.Op.EQUALS));
+	    nodes.add(new LogicalJoinNode("emp", "dept", "c1", "c0", Predicate.Op.EQUALS));
+	    nodes.add(new LogicalJoinNode("emp", "hobbies", "c2", "c0", Predicate.Op.EQUALS));
+
+	    j = new JoinOptimizer(
+	        Parser.generateLogicalPlan(tid, "SELECT * FROM emp,dept,hobbies,hobby WHERE emp.c1 = dept.c0 AND hobbies.c0 = emp.c2 AND hobbies.c1 = hobby.c0 AND e.c3 < 1000;"),
+	        nodes);
+
+	    // Set the last boolean here to 'true' in order to have orderJoins() print out its logic
+	    result = j.orderJoins(stats, filterSelectivities, false);
+
+	    // There are only three join nodes; if you're only re-ordering the join nodes,
+	    // you shouldn't end up with more than you started with
+	    TestUtil.assertEquals(result.size(), nodes.size());
+
+	    // There were a number of ways to do the query in this quiz, reasonably well;
+	    // we're just doing a heuristics-based optimizer, so, only ignore the really
+	    // bad case where "hobbies" is the outermost node in the left-deep tree.
+	    TestUtil.assertFalse(result.get(0).t1 == "hobbies");
+
+	    // Also check for some of the other silly cases, like forcing a cross join by
+	    // "hobbies" only being at the two extremes, or "hobbies" being the outermost table.
+	    TestUtil.assertFalse(result.get(2).t2 == "hobbies" && (result.get(0).t1 == "hobbies" || result.get(0).t2 == "hobbies"));
+	}
+	
+	  public static HeapFile createDuplicateHeapFile(ArrayList<ArrayList<Integer>> tuples, int columns, String colPrefix) throws IOException {
+	        File temp = File.createTempFile("table", ".dat");
+	        temp.deleteOnExit();
+	        HeapFileEncoder.convert(tuples, temp, BufferPool.PAGE_SIZE, columns);
+	        return Utility.openHeapFile(columns, colPrefix, temp);
+	  }
+	
+	public void nonequalityOrderJoinsTest() throws IOException, DbException, TransactionAbortedException, ParsingException {
+	    final int IO_COST = 103;
+
+	    JoinOptimizer j;
+	    HashMap<String, TableStats> stats = new HashMap<String,TableStats>();
+	    Vector<LogicalJoinNode> result;
+	    Vector<LogicalJoinNode> nodes = new Vector<LogicalJoinNode>();
+	    HashMap<String, Double> filterSelectivities = new HashMap<String, Double>();
+	    TransactionId tid = new TransactionId();
+	   
+	    // Create a large set of tables, and add tuples to the tables
+	    ArrayList<ArrayList<Integer>> smallHeapFileTuples = new ArrayList<ArrayList<Integer>>();
+	    HeapFile smallHeapFileA = SystemTestUtil.createRandomHeapFile(2, 100, Integer.MAX_VALUE, null, smallHeapFileTuples, "c");   
+	    HeapFile smallHeapFileB = createDuplicateHeapFile(smallHeapFileTuples, 2, "c");   
+	    HeapFile smallHeapFileC = createDuplicateHeapFile(smallHeapFileTuples, 2, "c");   
+	    HeapFile smallHeapFileD = createDuplicateHeapFile(smallHeapFileTuples, 2, "c");   
+	   
+	    // Add the tables to the database
+	    Database.getCatalog().addTable(smallHeapFileA, "a");
+	    Database.getCatalog().addTable(smallHeapFileB, "b");
+	    Database.getCatalog().addTable(smallHeapFileC, "c");
+	    Database.getCatalog().addTable(smallHeapFileD, "d");
+	   
+	    // Come up with join statistics for the tables
+	    stats.put("a", new TableStats(smallHeapFileA.getId(), IO_COST));
+	    stats.put("b", new TableStats(smallHeapFileB.getId(), IO_COST));
+	    stats.put("c", new TableStats(smallHeapFileC.getId(), IO_COST));
+	    stats.put("d", new TableStats(smallHeapFileD.getId(), IO_COST));
+	   
+	    // Put in some filter selectivities
+	    filterSelectivities.put("a", 1.0);
+	    filterSelectivities.put("b", 1.0);
+	    filterSelectivities.put("c", 1.0);
+	    filterSelectivities.put("d", 1.0);
+
+	    // Add the nodes to a collection for a query plan
+	    nodes.add(new LogicalJoinNode("a", "b", "c1", "c0", Predicate.Op.LESS_THAN));
+	    nodes.add(new LogicalJoinNode("b", "c", "c0", "c1", Predicate.Op.EQUALS));
+	    nodes.add(new LogicalJoinNode("c", "d", "c1", "c0", Predicate.Op.EQUALS));
+
+	    // Run the optimizer; see what results we get back
+	    j = new JoinOptimizer(
+	        Parser.generateLogicalPlan(tid, "SELECT COUNT(a.c0) FROM a, b, c, d WHERE a.c1 < b.c1 AND b.c0 = c.c0 AND c.c1 = d.c1;"),
+	        nodes);
+
+	    // Set the last boolean here to 'true' in order to have orderJoins() print out its logic
+	    result = j.orderJoins(stats, filterSelectivities, false);
+
+	    // If you're only re-ordering the join nodes,
+	    // you shouldn't end up with more than you started with
+	    TestUtil.assertEquals(result.size(), nodes.size());
+
+	    // Make sure that "bigTable" is the innermost table in the join
+	    TestUtil.assertEquals(result.get(result.size()-1).t1, "a");
+	  }
+
+	
 	public void tableStatsTests() {
 		TableStatsCustomTest test = new TableStatsCustomTest();
 		try {
@@ -310,7 +455,7 @@ public class SimpleDb {
     public static void customTests() {
     	try {
     		SimpleDb simpledb = new SimpleDb();
-    		simpledb.tableStatsTests();
+    		simpledb.nonequalityOrderJoinsTest();
     	} catch (Exception e) {
     		System.out.println("WTF exception");
     		e.printStackTrace();

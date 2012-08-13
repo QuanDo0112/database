@@ -49,8 +49,12 @@ public class IntHistogram {
     		_numberOfBuckets = _range;
     		_bucketStep = 1;
     	} else {
-    		_bucketStep = _range / _numberOfBuckets;
+    		double step = (double) _range / (double) _numberOfBuckets;
+    		step = Math.ceil(step);
+    		_bucketStep = (int) step;
     	}
+    	
+    	assert (_bucketStep > 0);
     }
     
     private void initialize() {

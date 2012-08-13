@@ -32,6 +32,7 @@ public class TableStatsCustomTest extends SimpleDbTestBase {
 		}
 		return ret;
 	}
+	
 	/**
 	 * Verify the cost estimates of scanning various numbers of pages from a HeapFile
 	 * This test checks that the estimateScanCost is: 

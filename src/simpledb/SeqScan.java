@@ -52,6 +52,7 @@ public class SeqScan implements DbIterator {
      * prefixed with the tableAlias string from the constructor.
      */
     public TupleDesc getTupleDesc() {
+    	assert (_file != null);
         TupleDesc fileDesc = _file.getTupleDesc();
         int length = fileDesc.numFields();
         

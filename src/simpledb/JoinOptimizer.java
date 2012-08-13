@@ -1,5 +1,6 @@
 package simpledb;
 import java.util.*;
+
 import javax.swing.*;
 import javax.swing.tree.*;
 
@@ -83,12 +84,13 @@ public class JoinOptimizer {
         if (j instanceof LogicalSubplanJoinNode) {
         	// A LogicalSubplanJoinNode represents a subquery.
         	// You do not need to implement proper support for these for Lab 4.
+        	assert (false);
         	return card1 + cost1 + cost2;
         } else {
-            // Insert your code here.
-            // HINT:  You may need to use the variable "j" if you implemented a join
-            //        algorithm that's more complicated than a basic nested-loops join.
-            return -1.0;
+        	// Follow formula joincost(t1 join t2) = scancost(t1) + ntups(t1) x scancost(t2) //IO cost
+            // + ntups(t1) x ntups(t2)  //CPU cost
+        	double joinCost = cost1 + (card1 * cost2) + (card1 * card2);
+        	return joinCost;
         }
     }
 
@@ -108,11 +110,34 @@ public class JoinOptimizer {
         if (j instanceof LogicalSubplanJoinNode) {
             // A LogicalSubplanJoinNode represents a subquery.
             // You do not need to implement proper support for these for Lab 4.
+        	assert (false);
             return card1;
         } else {
-            // some code goes here
-            return -1;
+        	switch (j.p) {
+			case NOT_EQUALS:
+			case EQUALS:
+			{
+				if (t1pkey) return card2;
+				if (t2pkey) return card1;
+        	
+				if (card1 > card2) return card1;
+				return card2;
+			}
+			case GREATER_THAN:
+			case GREATER_THAN_OR_EQ:
+			case LESS_THAN:
+			case LESS_THAN_OR_EQ:
+			case LIKE:
+			{
+				// Just assume range scans give you half of the cross product
+				// As said according to lab manual
+				return (int)((card1 * card2) * 0.3);
+			}
         }
+        } // end else
+        
+        assert (false);
+        return 0;
     }
 
     /** Helper method to enumerate all of the subsets of a given size
@@ -165,12 +190,60 @@ public class JoinOptimizer {
                                               HashMap<String, Double> filterSelectivities,  
                                               boolean explain) throws ParsingException 
     {
-        //Not necessary for labs 1--3
+    	PlanCache planCache = new PlanCache();
+    	
+    	for (int joinSize = 1; joinSize <= joins.size(); joinSize++) { // How many elements to use from the join set
+    		for (Set<LogicalJoinNode> joinSet : enumerateSubsets(joins, joinSize)) {
+    			// Initialize to max value so every possible plan is automatically cheaper
+    			CostCard bestPlan = new CostCard();
+    			bestPlan.cost = Double.MAX_VALUE;
+    			    			
+    			for (LogicalJoinNode joinPlan : joinSet) {
+    				bestPlan = calculateBestPlan(stats, filterSelectivities, planCache,
+							joinSet, bestPlan, joinPlan); 
+    				
+    			} // end inner for
+    			
+    		} // end middle for
+    	} // end outer for
+    	
+    	if (explain) {
+    		printJoins(joins, planCache, stats, filterSelectivities);
+    	}
+    	
+    	return getBestPlan(planCache);
+    }
 
-        // some code goes here
-        //Replace the following
-        return joins;
-    } 
+	private CostCard calculateBestPlan(HashMap<String, TableStats> stats,
+			HashMap<String, Double> filterSelectivities, PlanCache planCache,
+			Set<LogicalJoinNode> joinSet, CostCard bestPlan,
+			LogicalJoinNode joinPlan) throws ParsingException {
+		
+		CostCard joinPlanCost = computeCostAndCardOfSubplan(stats, filterSelectivities, joinPlan, joinSet, bestPlan.cost, planCache);
+		if (joinPlanCost != null) { // Can return null if not a possible ordering
+			if (joinPlanCost.cost < bestPlan.cost) {
+				bestPlan = joinPlanCost;
+			}
+		
+			assert (bestPlan.cost != Double.MAX_VALUE);
+			planCache.addPlan(joinSet, bestPlan.cost, bestPlan.card, bestPlan.plan);
+		}
+		
+		return bestPlan;
+	} 
+    
+    private Vector<LogicalJoinNode> getBestPlan(PlanCache planCache) {
+    	// By now, we should have a final plan that involves all the elements in the original
+    	// join set
+    	HashSet<LogicalJoinNode> finalSet = new HashSet<LogicalJoinNode>();
+    	for (LogicalJoinNode node : joins) {
+    		finalSet.add(node);
+    	}
+    	
+        Vector<LogicalJoinNode> bestPlanOrder = planCache.getOrder(finalSet);
+        assert (bestPlanOrder != null);
+        return bestPlanOrder;
+    }
  
     //===================== Private Methods =================================
 
