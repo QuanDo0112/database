@@ -29,6 +29,8 @@ public class SeqScan implements DbIterator {
         _transactionId = tid;
         _tableId = tableid;
         _tableAlias = tableAlias;
+        _file = Database.getCatalog().getDbFile(_tableId);
+        assert (_file != null);
     }
 
     public SeqScan(TransactionId tid, int tableid) {
@@ -37,8 +39,8 @@ public class SeqScan implements DbIterator {
 
     public void open()
         throws DbException, TransactionAbortedException {
-         _file = Database.getCatalog().getDbFile(_tableId);
          HeapFile heapFile = (HeapFile) _file;
+         assert (heapFile != null);
          _iterator = new HeapFileIterator(_transactionId, heapFile);
          _iterator.open();
     }
