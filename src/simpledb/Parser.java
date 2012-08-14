@@ -427,10 +427,13 @@ public class Parser {
             e.printStackTrace();
         } catch (simpledb.ParsingException e) {
             System.out.println("Invalid SQL expression: \n \t" + e.getMessage());
+            e.printStackTrace();
         } catch (Zql.ParseException e) {
             System.out.println("Invalid SQL expression: \n \t " + e);
+            e.printStackTrace();
         } catch (Zql.TokenMgrError e) {
             System.out.println("Invalid SQL expression: \n \t " + e);
+            e.printStackTrace();
         }
     }
 

@@ -139,6 +139,7 @@ public class BufferPool {
      * Returns true if the specific page id is 
      * a) in the buffer cache
      * b) Has a write lock
+     * c) Is actually dirty and needs to be flushed
      * If we only have a read lock, then no need to flush
      * If it isn't in the buffer cache then no need to flush as well
      * because eviction strategy only evicts non-dirty pages
@@ -148,8 +149,14 @@ public class BufferPool {
      */
     private boolean isRecoverable(PageId pid) {
     	int hashcode = pid.hashCode();
-    	return _cachedPages.containsKey(hashcode) && 
-    			_lockManager.hasWriteLock(pid);
+    	if (_cachedPages.containsKey(hashcode) && 
+    			_lockManager.hasWriteLock(pid)) {
+    		Page page = _cachedPages.get(hashcode);
+    		TransactionId tid = page.isDirty();
+    		return tid != null;
+    	}
+    	
+    	return false;
     }
     
     private synchronized void recoverPage(TransactionId tid, PageId pid) {
@@ -266,6 +273,10 @@ public class BufferPool {
     	Page page = _cachedPages.get(pageHash);
     	
     	if (tid != null) {
+    		LogFile log = Database.getLogFile();
+    		log.logWrite(tid, page.getBeforeImage(), page);
+    		log.force();
+    		
     		file.writePage(page);
     		boolean isDirty = false;
     		page.markDirty(isDirty, tid);

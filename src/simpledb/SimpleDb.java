@@ -451,11 +451,21 @@ public class SimpleDb {
 			e.printStackTrace();
 		}
 	}
+	
+	public void loggingTests() {
+		CustomLogTest logTests = new CustomLogTest();
+		try {
+			logTests.PatchTest();
+		} catch (Exception e) {
+			System.out.println("Error running logging tests: " + e.getMessage());
+			e.printStackTrace();
+		}
+	}
 
     public static void customTests() {
     	try {
     		SimpleDb simpledb = new SimpleDb();
-    		simpledb.nonequalityOrderJoinsTest();
+    		simpledb.loggingTests();
     	} catch (Exception e) {
     		System.out.println("WTF exception");
     		e.printStackTrace();

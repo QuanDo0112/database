@@ -175,7 +175,6 @@ public class LogFile {
     */
     public synchronized void logCommit(TransactionId tid) throws IOException {
         preAppend();
-        Debug.log("COMMIT " + tid.getId());
         //should we verify that this is a live transaction?
 
         raf.writeInt(COMMIT_RECORD);
