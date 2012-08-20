@@ -455,7 +455,13 @@ public class SimpleDb {
 	public void loggingTests() {
 		CustomLogTest logTests = new CustomLogTest();
 		try {
-			logTests.PatchTest();
+			//logTests.TestAbortCrash();
+			//logTests.TestOpenCommitCheckpointOpenCrash();
+			logTests.TestCommitAbortCommitCrash();
+			//logTests.TestCommitCrash();
+			//logTests.TestAbortCommitInterleaved();
+			//logTests.PatchTest();
+			//logTests.
 		} catch (Exception e) {
 			System.out.println("Error running logging tests: " + e.getMessage());
 			e.printStackTrace();

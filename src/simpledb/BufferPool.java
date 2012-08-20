@@ -65,6 +65,10 @@ public class BufferPool {
     	checkConsistency();
     }
     
+    private boolean inCache(PageId pid) {
+    	int hashcode = pid.hashCode();
+    	return _cachedPages.containsKey(hashcode);
+    }
         
     /**
      * Retrieve the specified page with the associated permissions.
@@ -84,7 +88,7 @@ public class BufferPool {
     public synchronized Page getPage(TransactionId tid, PageId pid, Permissions perm)
         throws TransactionAbortedException, DbException {
     	int pageHash = pid.hashCode();    	
-        if (!_cachedPages.containsKey(pageHash)) {
+        if (!inCache(pid)) {
         	// Holding a lock shouldn't matter! Buffer pool is independent of lock manager
         	if (isFull()) {
             	evictPage();
@@ -192,13 +196,31 @@ public class BufferPool {
     public void transactionComplete(TransactionId tid, boolean commit)
         throws IOException {
     	if (commit) {
-    		flushPages(tid);
+    		commitTransaction(tid);
     	} else {
     		recoverPages(tid);
     	}
     	
     	_lockManager.clearAllLocks(tid);
     }
+
+	private void commitTransaction(TransactionId tid) throws IOException {
+		for (PageId pid : _lockManager.getPagesInTransaction(tid)) {
+			int hashcode = pid.hashCode();
+			if (isRecoverable(pid)) {
+				flushPage(pid, tid);
+			} 
+			
+			// If the page wasn't in cache, it meant we only had a read lock
+			// on the page. We don't have to set before image unless we had a 
+			// write lock. Another transaction could not have a write lock
+			// Otherwise this transaction couldn't finish.
+			if (inCache(pid)) {
+				Page page = _cachedPages.get(hashcode);
+				page.setBeforeImage();
+			}
+		}
+	}
 
     /**
      * Add a tuple to the specified table behalf of transaction tid.  Will
@@ -260,6 +282,8 @@ public class BufferPool {
     public synchronized void discardPage(PageId pid) {
         // some code goes here
         // only necessary for lab5
+    	assert (false);
+    	// Equivalent to our evictPage at the bottom
     }
 
     /**
@@ -269,20 +293,27 @@ public class BufferPool {
     private void flushPage(PageId pid, TransactionId tid) throws IOException {
     	DbFile file = Database.getCatalog().getDbFile(pid.getTableId());
     	int pageHash = pid.hashCode();
-    	assert (_cachedPages.containsKey(pageHash));
+    	assert (inCache(pid));
     	Page page = _cachedPages.get(pageHash);
     	
     	if (tid != null) {
-    		LogFile log = Database.getLogFile();
-    		log.logWrite(tid, page.getBeforeImage(), page);
-    		log.force();
-    		
-    		file.writePage(page);
-    		boolean isDirty = false;
-    		page.markDirty(isDirty, tid);
-    		page.setBeforeImage();
+    		writeLog(tid, page);
+    		writePage(tid, file, page);
     	}
     }
+
+	private void writePage(TransactionId tid, DbFile file, Page page)
+			throws IOException {
+		file.writePage(page);
+		boolean isDirty = false;
+		page.markDirty(isDirty, tid);
+	}
+
+	private void writeLog(TransactionId tid, Page page) throws IOException {
+		LogFile log = Database.getLogFile();
+		log.logWrite(tid, page.getBeforeImage(), page);
+		log.force();
+	}
 
     /** Write all pages of the specified transaction to disk.
      */
@@ -327,6 +358,28 @@ public class BufferPool {
     		System.out.println(e.getMessage());
     		System.exit(1);
     	}
+    }
+    
+    // Forcibly evict this page from the buffer pool.
+    // Bypasses consistency checks and does not flush to disk
+    // Used by the Log file to clean up the buffer pool
+    public void evictPage(Page page) {
+    	PageId pid = page.getId();
+    	int hashcode = pid.hashCode();
+    	
+    	if (inCache(pid)) {
+	    	assert (_recentlyUsed.contains(hashcode));
+	    	_cachedPages.remove(hashcode);
+	    	int lruIndex = _recentlyUsed.indexOf(hashcode);
+	    	_recentlyUsed.remove(lruIndex);
+    	} else {
+	    	assert (!_recentlyUsed.contains(hashcode));
+    	}
+    }
+    
+    public void clean() {
+    	assert (_cachedPages.isEmpty());
+    	assert (_recentlyUsed.isEmpty());
     }
 
 } // end class

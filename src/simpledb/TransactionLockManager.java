@@ -65,7 +65,7 @@ public class TransactionLockManager {
 		return _transactionInfo.readsPage(tid, pid);
 	}
 	
-		// returns true if ONLY one transaction has a read lock on the page
+	// returns true if ONLY one transaction has a read lock on the page
 	private boolean isUpgradeable(TransactionId tid, PageId pid) {
 		if (!hasLock(tid, pid, Permissions.READ_ONLY)) return false;
 					
@@ -138,10 +138,8 @@ public class TransactionLockManager {
 	public synchronized void clearLock(TransactionId tid, PageId pid) {
 		Semaphore lock = getPageLock(pid);
 		if (hasWriteLock(tid, pid)) {
-			// System.out.println("Releasing write lock");
 			lock.release(MAX_AVAILABLE);
 		} else {
-			// System.out.println("Releasing read lock");
 			lock.release();
 		}
 
@@ -151,5 +149,4 @@ public class TransactionLockManager {
 	private void clearTransactionPageLinks(TransactionId tid, PageId pid) {
 		_transactionInfo.removeEdge(tid, pid);
 	}
-
 }

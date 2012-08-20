@@ -82,7 +82,9 @@ public class LogFile {
     static final int UPDATE_RECORD = 3;
     static final int BEGIN_RECORD = 4;
     static final int CHECKPOINT_RECORD = 5;
+    static final int UNDO_CLR_RECORD = 6;
     static final long NO_CHECKPOINT_ID = -1;
+    static final long NO_PREV_LSN = -2;
 
     static int INT_SIZE = 4;
     static int LONG_SIZE = 8;
@@ -92,6 +94,12 @@ public class LogFile {
     int totalRecords = 0; // for PatchTest
 
     HashMap<Long,Long> tidToFirstLogRecord = new HashMap<Long,Long>();
+    
+    // Recovery fields
+    HashMap<Long, ArrayList<Long>> _transactionPrevLSN;
+    HashMap<Long, Long> _transactionTable;
+    HashMap<Integer, Long> _dirtyPageTable;
+    HashMap<Integer, Long> _pageLSN;
 
     /** Constructor.
         Initialize and back the log file with the specified file.
@@ -337,7 +345,7 @@ public class LogFile {
                     Long key = els.next();
                     Debug.log("WRITING CHECKPOINT TRANSACTION ID: " + key);
                     raf.writeLong(key);
-                    //Debug.log("WRITING CHECKPOINT TRANSACTION OFFSET: " + tidToFirstLogRecord.get(key));
+                    Debug.log("WRITING CHECKPOINT TRANSACTION OFFSET: " + tidToFirstLogRecord.get(key));
                     raf.writeLong(tidToFirstLogRecord.get(key));
                 }
 
@@ -451,8 +459,105 @@ public class LogFile {
         currentOffset = raf.getFilePointer();
         //print();
     }
+    
+    private boolean isEOF() {
+    	try {
+    		return raf.getFilePointer() == raf.length();
+    	} catch (IOException e) {
+    		System.err.println("Could not detect EOF: " + e);
+    		return false;
+    	}
+    }
+    
+    private void parseRollback(long transactionId) 
+    	throws NoSuchElementException, IOException {
+    	
+    	// Start at the beginning of the transaction until the end of the file
+    	while (!isEOF()) {
+    		long startingOffset = raf.getFilePointer();
+    		int recordType = raf.readInt();
+    		long logTransactionId = raf.readLong();
+    		long endTransactionOffset = 0;
+    		
+    		switch (recordType) {
+    		case ABORT_RECORD:
+    		case BEGIN_RECORD:
+    		case COMMIT_RECORD:
+    			break;
+    		case CHECKPOINT_RECORD:
+    		{
+    			int transactionCount = raf.readInt();
+    			assert (logTransactionId == NO_CHECKPOINT_ID);
+    			parseCheckpointRecords(transactionCount);
+    			break;
+    		}
+    		case UPDATE_RECORD:
+    		{
+    			updateRollback(transactionId, logTransactionId);
+    			break;
+    		}
+    		default:
+    			System.out.println("Unknown key: " + recordType);
+    			assert (false);
+			}
+    		
+    		
+    		endTransactionOffset = raf.readLong();
+    		consistencyCheckRollback(startingOffset, transactionId, logTransactionId,
+					endTransactionOffset);
+    	}
+    }
 
-    /** Rollback the specified transaction, setting the state of any
+    /*
+     * CHECKPOINT records consist of active transactions at the time
+	    the checkpoint was taken and their first log record on disk.  The format
+	    of the record is an integer count of the number of transactions, as well
+	    as a long integer transaction id and a long integer first record offset
+	    for each active transaction.
+	 */
+	private void parseCheckpointRecords(int transactionCount) {
+		try {
+			for (int i = 0; i < transactionCount; i++) {
+				long transactionId = raf.readLong();
+				long offset = raf.readLong();
+				// Can't actually assert transactionId and offset
+				// Are in the idToFirstLogRecord
+				// Becauase a commit clears the transaction id from the map
+				//System.out.println("transaction id: " + transactionId + " offset: " + offset);
+			}
+		} catch (IOException e) {
+			System.err.println("Error reading long records in parseCheckpointRecords " + e);
+			e.printStackTrace();
+		}
+	}
+
+	private void consistencyCheckRollback(long startingOffset,
+			long transactionId, long logTransactionId, long endTransactionOffset) {
+		
+		assert (endTransactionOffset != 0);
+		if (transactionId == logTransactionId) {
+			assert (endTransactionOffset == startingOffset);
+		}
+	}
+
+    private void updateRollback(long transactionId, long logTransactionId) {
+    	try {
+	    	Page beforePage = this.readPageData(raf);
+	    	Page afterPage = this.readPageData(raf); // Don't use but have to move file descriptor pointer forward
+	    	PageId pid = beforePage.getId();
+	    	
+	    	if (transactionId == logTransactionId) {
+		    	DbFile file = Database.getCatalog().getDbFile(pid.getTableId());
+		    	file.writePage(beforePage);
+		    	BufferPool pool = Database.getBufferPool();
+		    	pool.evictPage(beforePage);
+	    	}
+    	} catch (IOException e) {
+    		System.err.println("Error reading page data during parse update: " + e);
+    	}
+	}
+
+	/** Rollback the specified transaction, setting the state of any
         of pages it updated to their pre-updated state.  To preserve
         transaction semantics, this should not be called on
         transactions that have already committed (though this may not
@@ -466,6 +571,9 @@ public class LogFile {
             synchronized(this) {
                 preAppend();
                 // some code goes here
+                long startingOffset = tidToFirstLogRecord.get(tid.getId());
+                raf.seek(startingOffset);
+                parseRollback(tid.getId());
             }
         }
     }
@@ -492,12 +600,386 @@ public class LogFile {
         synchronized (Database.getBufferPool()) {
             synchronized (this) {
                 recoveryUndecided = false;
-                // some code goes here
+                initializeTransactionDataStructures();
+                long checkpoint = getLastCheckpoint();
+                recoverDatabaseFromCheckpoint(checkpoint);
+                Database.getBufferPool().clean();
             }
          }
     }
+    
+	private void initializeTransactionDataStructures() {
+		_transactionPrevLSN = new HashMap<Long, ArrayList<Long>>();
+		_transactionTable =  new HashMap<Long,Long>();
+		_dirtyPageTable = new HashMap<Integer, Long>();
+		_pageLSN = new HashMap<Integer, Long>();
+	}
+	
+	private ArrayList<Long> getPrevLSN(long transactionId) {
+		if (!_transactionPrevLSN.containsKey(transactionId)) {
+			_transactionPrevLSN.put(transactionId, new ArrayList<Long>());
+		}
+		
+		return _transactionPrevLSN.get(transactionId);
+	}
+	
+	// Prev LSNs must be in ascending order
+	private void addPrevLSN(long transactionId, long LSN) {
+		ArrayList<Long> lsns = getPrevLSN(transactionId);
+		if (lsns.size() > 0) {
+			long prevLSN = lsns.get(lsns.size() - 1);
+			assert (prevLSN < LSN);
+		}
+		
+		lsns.add(LSN);
+	}
+	
+	private void clearPrevLSN(long transactionId) {
+		assert (_transactionPrevLSN.containsKey(transactionId));
+		_transactionPrevLSN.remove(transactionId);
+	}
+	
+	private long getLastCheckpoint() throws IOException {
+    	raf.seek(0);
+    	long lastCheckpoint = raf.readLong();
+    	if (lastCheckpoint == NO_CHECKPOINT_ID) return raf.getFilePointer();
+    	return lastCheckpoint;
+    }
 
-    /** Print out a human readable represenation of the log */
+	/***
+	 * According to ARIES paper, log files should have a chain of
+	 * previousLSN in each LOG RECORD. Previous LSN is a list
+	 * of LSNs for a given transaction. The log file in this DB
+	 * does not have prevLSN, so do one more scan from the beginning to create previousLSN.
+	 * 
+	 * In addition, checkpoint's aren't ARIES checkpoints. ARIES
+	 * checkpoints should have live transactions (which we have) AND
+	 * the dirty page table (which we don't). We could technically find out
+	 * by asking the lock manager, but that seems ugly and still incorrect.
+	 * 
+	 * Finally, since we don't have the dirty page table, we have to restart REDO
+	 * from first LSN in a live transaction. 
+	 * 
+	 * LSN is implicit here, LSN is actually log offset
+	 * 
+	 * TODO: Modify log from supplied log format to ARIES format
+	 * @throws IOException
+	 */
+	private void recoverDatabaseFromCheckpoint(long checkpoint) 
+		throws IOException {
+		raf.seek(checkpoint);
+		assert (tidToFirstLogRecord.isEmpty());
+		//System.out.println("Starting Analysis phase at LSN : " + checkpoint);
+		
+		// Perform ARIES logging protocol with slight modification
+		analysisPhase();
+		//printRecoverData();
+		redoPhase();
+		undoPhase();
+		//System.out.println("Finished recovering");
+  	}
+
+	private void analysisPhase() throws IOException {
+	  	while (!isEOF()) {
+	  		long lsn = raf.getFilePointer();
+    		int recordType = raf.readInt();
+    		long logTransactionId = raf.readLong();
+    		//System.out.println("Analyzing transaction : " + logTransactionId + " with record type: " + recordType);
+    		    		
+    		switch (recordType) {
+    		case COMMIT_RECORD:
+    		{
+    			if (_transactionTable.containsKey(lsn)) {
+	    			_transactionTable.remove(lsn);
+    			}
+    		}
+    		case ABORT_RECORD: // Means we have to abort 
+    		{
+    			break;
+    		}
+    		case BEGIN_RECORD:
+    		{
+    			//System.out.println("Putting in lsn to transaction id: " + lsn + " = " + logTransactionId);
+    			tidToFirstLogRecord.put(logTransactionId, lsn);
+    			_transactionTable.put(lsn, logTransactionId);
+    			break;
+    		}
+    		case CHECKPOINT_RECORD:
+    		{
+    			int transactionCount = raf.readInt();
+    			analyzeCheckpoint(transactionCount);
+    			break;
+    		}
+    		case UPDATE_RECORD:
+    		{
+    			analysisUpdatePhase(logTransactionId, lsn);
+    			break;
+    		}
+    		default:
+    			System.out.println("Unknown key: " + recordType);
+    			assert (false);
+			}
+    		
+    		long endLSN = raf.readLong(); // read end transaction id
+    		assert (lsn == endLSN);
+    	}
+	}
+	
+	public void printRecoverData() {
+		System.out.println("=== ARIES Recovery Data ====\n");
+		StringBuffer buffer = new StringBuffer();
+		
+		for (long lsn : _transactionTable.keySet()) {
+			buffer.append(lsn);
+			buffer.append(" = ");
+			buffer.append(_transactionTable.get(lsn) + "\n");
+		}
+		
+		System.out.println("Transactions table: \n" + buffer.toString());
+		
+		StringBuffer dirtyPages = new StringBuffer();
+		for (int pageNumber : _dirtyPageTable.keySet()) {
+			dirtyPages.append(pageNumber);
+			long lsn = _dirtyPageTable.get(pageNumber);
+			dirtyPages.append(" = " + lsn);
+			dirtyPages.append("\n");
+		}
+		
+		System.out.println("Dirty page table: \n" + dirtyPages.toString());
+		System.out.println("\n=== End ARIES Recovery Data ===");
+	}
+	
+	private void analyzeCheckpoint(int transactionCount) throws IOException {
+		for (int i = 0; i < transactionCount; i++) {
+			long transactionId = raf.readLong();
+			long lsn = raf.readLong();
+			//System.out.println("Analyzing checkpoint transaction id: " + transactionId);
+			_transactionTable.put(lsn, transactionId);
+		}
+	}
+
+	private void analysisUpdatePhase(long logTransactionId, long lsn) throws IOException {
+		Page oldPage = this.readPageData(raf);
+		Page newPage = this.readPageData(raf); 
+		
+		assert (oldPage.getId().equals(newPage.getId()));
+		assert (lsn != 0);
+		
+		PageId pid = oldPage.getId();
+		int pageNumber = pid.pageNumber();
+		_dirtyPageTable.put(pageNumber, lsn);
+	}
+	
+	private void redoPhase() throws IOException {
+		long start = redoGetMinLSN();
+		raf.seek(start);
+		//System.out.println("Starting Redo phase at LSN: " + start);
+		
+	  	while (!isEOF()) {
+	  		long lsn = raf.getFilePointer();
+    		int recordType = raf.readInt();
+    		long logTransactionId = raf.readLong();
+    		addPrevLSN(logTransactionId, lsn);
+    		
+    		switch (recordType) {
+    		case ABORT_RECORD:
+    		{
+    			redoRollback(logTransactionId);
+                removeFromTransactionTable(logTransactionId);
+    			break;
+    		}
+    		case BEGIN_RECORD:
+    		{
+    			tidToFirstLogRecord.put(logTransactionId, lsn);
+    			break;
+    		}
+    		case COMMIT_RECORD:
+    		{
+    			//System.out.println("Log transaction: " + logTransactionId + " commited");
+    			removeFromTransactionTable(logTransactionId);
+    			break;
+    		}
+    		case CHECKPOINT_RECORD:
+    		{
+    			int transactionCount = raf.readInt();
+    			parseCheckpointRecords(transactionCount);
+    			break;
+    		}
+    		case UPDATE_RECORD:
+    		{
+    			redoUpdate(logTransactionId, lsn);
+    			break;
+    		}
+    		default:
+    			System.out.println("Unknown key: " + recordType);
+    			assert (false);
+			}
+    		
+    		long endLSN = raf.readLong(); // read end transaction id
+    		assert (lsn == endLSN);
+    	}
+	}
+
+	private void redoRollback(long logTransactionId) throws IOException {
+		long currentOffset = raf.getFilePointer();
+		assert (tidToFirstLogRecord.containsKey(logTransactionId));
+		long startingOffset = tidToFirstLogRecord.get(logTransactionId);
+		raf.seek(startingOffset);
+		parseRollback(logTransactionId);
+		raf.seek(currentOffset);
+	}
+	
+	private void removeFromTransactionTable(long logTransactionId) {
+		for (long prevLSN : getPrevLSN(logTransactionId)) {
+			if (_transactionTable.containsKey(prevLSN)) {
+				_transactionTable.remove(prevLSN);
+			}
+		}
+	}
+
+	private void redoUpdate(long logTransactionId, long lsn) throws IOException {
+		Page oldPage = readPageData(raf);
+		Page newPage = readPageData(raf);
+		commitToDisk(newPage);
+		
+		PageId pid = oldPage.getId();
+		_pageLSN.put(pid.pageNumber(), lsn);
+	}
+
+	/***
+	 * Since our checkpoint doesn't record dirty page tables
+	 * Start at min offset of live transactions. Read Analysis Phase
+	 * @return
+	 */
+	private long redoGetMinLSN() {
+		long min = Long.MAX_VALUE;
+		for (long lsn : _transactionTable.keySet()) {
+			if (lsn < min) {
+				min = lsn;
+			}
+		}
+		
+		assert (min != Long.MAX_VALUE);
+		return min;
+	}
+	
+	private void undoPhase() {
+		for (long lsn : _transactionTable.keySet()) {
+			long loserTransaction = _transactionTable.get(lsn);
+			//System.out.println("Undoing transaction: " + loserTransaction);
+			
+			long prevLSN = getNextPrevLSN(loserTransaction);
+			while (prevLSN != NO_PREV_LSN) {
+				//printLSNs(loserTransaction);
+				undoTransaction(loserTransaction, prevLSN);
+				prevLSN = getNextPrevLSN(loserTransaction);
+			}
+		}
+	}
+	
+	private void printLSNs(long transactionId) {
+		ArrayList<Long> previousLSN = getPrevLSN(transactionId);
+		if (previousLSN.isEmpty()) return;
+		
+		System.out.println("Previous LSNs for transaction: " + transactionId);
+		long prevLSN = -1;
+		for (long lsn : previousLSN) {
+			assert (lsn > prevLSN);
+			System.out.println("Previous LSN: " + lsn);
+		}
+		
+		//System.out.println("Finished previous LNS\n");
+	}
+
+	private void undoTransaction(long loserTransaction, long lsn) {
+		try {
+			assert (lsn != NO_CHECKPOINT_ID);
+			raf.seek(lsn);
+			int recordType = raf.readInt();
+			long transactionId = raf.readLong();
+			assert (loserTransaction == transactionId);
+			//System.out.println("Undoing transaction : " + transactionId + " at lsn: " + lsn);
+			
+			switch (recordType) {
+			case BEGIN_RECORD:
+			case ABORT_RECORD:
+			case COMMIT_RECORD:
+				break;
+			case CHECKPOINT_RECORD:
+			{
+				int recordCount = raf.readInt();
+				parseCheckpointRecords(recordCount);
+				break;
+			}
+			case UPDATE_RECORD:
+			{
+				undoUpdate(loserTransaction, lsn);
+				break;
+			}
+			default:
+				System.err.println("Got unknown recordType: " + recordType);
+				assert (false);
+			}
+			
+			long endRecord = raf.readLong();
+			assert (endRecord == lsn);
+		} catch (IOException e) {
+			System.err.println("Error undoing transaction: " + e);
+			e.printStackTrace();
+		}
+		
+		addCLRRecord(loserTransaction, lsn);
+	}
+
+	private void undoUpdate(long loserTransaction, long lsn) {
+		try {
+			Page oldPage = readPageData(raf);
+			Page newPage = readPageData(raf);
+			commitToDisk(oldPage);
+			// TODO Auto-generated method stub
+		} catch (IOException e) {
+			System.err.println("Error doing undo update " + e);
+		}
+	}
+	
+	private DbFile getDbFile(PageId pid) {
+		DbFile file = Database.getCatalog().getDbFile(pid.getTableId());
+		assert (file != null);
+		return file;
+	}
+
+	private void commitToDisk(Page page) throws IOException {
+		DbFile file = getDbFile(page.getId());
+		file.writePage(page);
+	}
+
+	private long getNextPrevLSN(long loserTransaction) {
+		ArrayList<Long> prevLSNs = getPrevLSN(loserTransaction);
+		if (prevLSNs.isEmpty()) return NO_PREV_LSN;
+		int size = prevLSNs.size();
+		int lastIndex = size - 1;
+		long prevLSN = prevLSNs.get(lastIndex);
+		prevLSNs.remove(lastIndex);
+		return prevLSN;
+	}
+
+	private void addCLRRecord(long loserTransaction, long prevLSN) {
+		try { 
+			raf.seek(raf.length());
+			preAppend();
+			
+			raf.writeInt(UNDO_CLR_RECORD);
+            raf.writeLong(loserTransaction);
+            raf.writeLong(prevLSN);
+            raf.writeLong(currentOffset);
+            currentOffset = raf.getFilePointer();
+            force();
+		} catch (IOException e) {
+			System.err.println("Error adding CLR record: " + e);
+		}
+	}
+
+	/** Print out a human readable represenation of the log */
     public void print() throws IOException {
         // some code goes here
     }
