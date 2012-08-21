@@ -66,7 +66,8 @@ public class IntegerAggregator implements Aggregator {
     	if (_groupField == Aggregator.NO_GROUPING) return null;
     	
     	Field field = tuple.getField(_groupField);
-    	_fieldType = field.getType();
+    	Type fieldType = field.getType();
+    	assert (fieldType == _fieldType);
     	if (isInteger(field)) {
     		return ((IntField) field).getValue();
     	} else {
@@ -110,37 +111,6 @@ public class IntegerAggregator implements Aggregator {
     		int keyCount = _keyCount.get(key);
     		keyCount++;
     		_keyCount.put(key,  keyCount);
-    		// Current number of keys * keyAvg == oldValue
-    		// oldValue + avg / (keys + 1) == new Average
-    		/*
-    		int keyCount = _avgCount.get(key);
-    		if (!hasAggregate()) {
-    			keyCount = _data.size();
-    		}
-    		if (key instanceof Integer) {
-    			int keyId = (Integer) key;
-    			if (keyId == 0) {
-    				System.out.println(keyCount + ": Adding to key 0: " + value);
-    			}
-    		}
-    		
-    		
-    		// Have to use old # of keys to calculate previous total
-    		int newAverage = aggregateValue * keyCount;
-    		newAverage += value;
-    		
-    		// Have to include this new "key" in calculating the average
-    		++keyCount;
-    		aggregateValue = newAverage / keyCount;
-    		if (key instanceof Integer) {
-    			int keyId = (Integer) key;
-    			if (keyId == 0) {
-    				System.out.println(keyCount + ": Aggregate: " + aggregateValue);
-    			}
-    		}
-    		
-    		_avgCount.put(key, keyCount);
-    		*/
     		break;
     	}
     	default:
@@ -154,12 +124,14 @@ public class IntegerAggregator implements Aggregator {
     	return _groupField != Aggregator.NO_GROUPING;
     }
     
-    private Field getGroupField(Object key) {
+    private Field getGroupField(Object key, TupleDesc description) {
     	if (!hasAggregate()) {
     		return new IntField(0);
     	} else if (_fieldType == Type.INT_TYPE) {
+    		assert (key instanceof Integer);
     		return new IntField((Integer) key);
 		} else {
+			assert (key instanceof String);
 			return new StringField((String) key, _fieldType.getLen());
 		}
     }
@@ -167,13 +139,12 @@ public class IntegerAggregator implements Aggregator {
     private TupleDesc createTupleDesc() {
     	if (hasAggregate()) {
     		Type[] types = new Type[2];
-    		_fieldType = Type.INT_TYPE;
     		types[0] = this._fieldType;    	
         	types[1] = Type.INT_TYPE;
         	
         	String[] names = new String[2];
         	names[0] = "key";
-        	names[0] = _op.toString();
+        	names[1] = _op.toString();
         	return new TupleDesc(types, names);
     	} else {
     		Type[] types = new Type[1];
@@ -198,7 +169,7 @@ public class IntegerAggregator implements Aggregator {
     		int value = _data.get(key);
     		
     		Tuple newTuple = new Tuple(description);
-    		Field groupBy = getGroupField(key);
+    		Field groupBy = getGroupField(key, description);
     		if (_op == Aggregator.Op.AVG) {
     			value = value / _keyCount.get(key);
     		}

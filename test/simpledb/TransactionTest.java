@@ -118,6 +118,5 @@ public class TransactionTest extends TestUtil.CreateHeapFile {
   public static junit.framework.Test suite() {
     return new JUnit4TestAdapter(TransactionTest.class);
   }
-
 }
 

@@ -241,7 +241,7 @@ public class SimpleDb {
 	}
 	
 	public void transactionTest() {
-		TransactionTest t = new TransactionTest();
+		CustomTransactionTest t = new CustomTransactionTest();
 		try {
 			t.setUp();
 			//t.testSingleThread();
@@ -467,13 +467,33 @@ public class SimpleDb {
 			e.printStackTrace();
 		}
 	}
+	
+	public void queryTest() {
+		try {
+			QuerySysTest queryTest = new QuerySysTest();
+			queryTest.queryTest();
+		} catch (Exception e) {
+			System.err.println("Error running query test: " + e.toString());
+			e.printStackTrace();
+		}
+	}
+	
+	public void aggregateTests() {
+		CustomAggregateTest test = new CustomAggregateTest();
+		try {
+			test.createTupleLists();
+			test.sumStringGroupBy();
+		} catch (Exception e) {
+			System.out.println("Error running aggregate tests " + e.toString());
+			e.printStackTrace();
+		}
+	}
 
     public static void customTests() {
     	try {
     		SimpleDb simpledb = new SimpleDb();
-    		simpledb.loggingTests();
+    		simpledb.aggregateTests();
     	} catch (Exception e) {
-    		System.out.println("WTF exception");
     		e.printStackTrace();
     		System.out.println(e);
     		System.exit(1);

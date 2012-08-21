@@ -25,9 +25,6 @@ public class StringAggregator implements Aggregator {
         _groupBy = gbfield;
         _aggregateField = afield;
         _op = what;
-        
-        assert (what == Op.COUNT);
-        
         _countData = new HashMap<Integer, Integer>();
     }
 

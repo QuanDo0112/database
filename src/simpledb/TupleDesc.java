@@ -101,6 +101,7 @@ public class TupleDesc {
             if (s.equals(name)) return i;
     	}
     	
+    	//assert (false);
     	throw new NoSuchElementException("Type does not have type: " + name);
     }
 

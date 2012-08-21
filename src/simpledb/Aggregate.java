@@ -30,19 +30,31 @@ public class Aggregate extends Operator {
      * @param aop The aggregation operator to use
      */
     public Aggregate(DbIterator child, int afield, int gfield, Aggregator.Op aop) {
+    	assert (child != null);
         _child = child;
         _aggregateField = afield;
         _groupBy = gfield;
         _op = aop;
         
-        if (_op == Aggregator.Op.COUNT) {
-        	_aggregator = new StringAggregator(gfield, null, afield, aop);
-        } else {
-        	_aggregator = new IntegerAggregator(gfield, null, afield, aop);
-        }
+        createAggregator();
     }
 
-    public static String nameOfAggregatorOp(Aggregator.Op aop) {
+    private void createAggregator() {
+    	TupleDesc desc = _child.getTupleDesc();
+    	assert (desc != null);
+    	Type aggregateType = desc.getFieldType(_aggregateField);
+    	Type groupType = desc.getFieldType(_groupBy);
+    	
+    	if (aggregateType == Type.INT_TYPE) {
+    		_aggregator = new IntegerAggregator(_groupBy, groupType, _aggregateField, _op);
+    	} else {
+    		assert (aggregateType == Type.STRING_TYPE);
+    		_aggregator = new StringAggregator(_groupBy, groupType, _aggregateField, _op);
+    	}
+		
+	}
+
+	public static String nameOfAggregatorOp(Aggregator.Op aop) {
         switch (aop) {
         case MIN:
             return "min";
