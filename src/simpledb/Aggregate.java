@@ -43,7 +43,11 @@ public class Aggregate extends Operator {
     	TupleDesc desc = _child.getTupleDesc();
     	assert (desc != null);
     	Type aggregateType = desc.getFieldType(_aggregateField);
-    	Type groupType = desc.getFieldType(_groupBy);
+    	Type groupType = null;
+    	
+    	if (_groupBy != Aggregator.NO_GROUPING) {
+    		groupType = desc.getFieldType(_groupBy);
+    	}
     	
     	if (aggregateType == Type.INT_TYPE) {
     		_aggregator = new IntegerAggregator(_groupBy, groupType, _aggregateField, _op);
@@ -51,7 +55,6 @@ public class Aggregate extends Operator {
     		assert (aggregateType == Type.STRING_TYPE);
     		_aggregator = new StringAggregator(_groupBy, groupType, _aggregateField, _op);
     	}
-		
 	}
 
 	public static String nameOfAggregatorOp(Aggregator.Op aop) {

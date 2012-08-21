@@ -75,6 +75,7 @@ public class TupleDesc {
             throw new NoSuchElementException("Type " + i + " does not exist");
         }
 
+        assert (i >= 0);
     	return _types[i];
     }
 

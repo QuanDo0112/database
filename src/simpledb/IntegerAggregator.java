@@ -113,6 +113,11 @@ public class IntegerAggregator implements Aggregator {
     		_keyCount.put(key,  keyCount);
     		break;
     	}
+    	case COUNT:
+    	{
+    		aggregateValue++;
+    		break;
+    	}
     	default:
     		assert (false);
     	}
