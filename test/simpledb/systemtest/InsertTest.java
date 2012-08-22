@@ -2,7 +2,18 @@ package simpledb.systemtest;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import simpledb.*;
+
+import simpledb.Database;
+import simpledb.DbException;
+import simpledb.HeapFile;
+import simpledb.Insert;
+import simpledb.IntField;
+import simpledb.Query;
+import simpledb.SeqScan;
+import simpledb.TransactionAbortedException;
+import simpledb.TransactionId;
+import simpledb.Tuple;
+import simpledb.test.*;
 
 import static org.junit.Assert.*;
 import org.junit.Test;

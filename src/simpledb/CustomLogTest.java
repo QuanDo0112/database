@@ -1,7 +1,10 @@
 package simpledb;
 
 import java.io.*;
-import java.util.*;
+import java.util.Arrays;
+
+import simpledb.TestUtil.LockGrabber;
+import simpledb.TestUtil;
 
 
 /**

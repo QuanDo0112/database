@@ -4,7 +4,19 @@ import static org.junit.Assert.*;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import simpledb.*;
+
+import simpledb.DbException;
+import simpledb.Delete;
+import simpledb.Filter;
+import simpledb.HeapFile;
+import simpledb.IntField;
+import simpledb.Predicate;
+import simpledb.Query;
+import simpledb.SeqScan;
+import simpledb.TransactionAbortedException;
+import simpledb.TransactionId;
+import simpledb.Tuple;
+import simpledb.test.*;
 
 public class DeleteTest extends FilterBase {
     ArrayList<ArrayList<Integer>> expectedTuples = null;

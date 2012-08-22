@@ -30,6 +30,7 @@ public class Join extends Operator {
     }
 
     public TupleDesc getTupleDesc() {
+    	assert (_joinOperator != null);
     	return _joinOperator.getTupleDesc();
     }
 

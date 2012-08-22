@@ -1,6 +1,5 @@
 package simpledb;
 
-
 public class CustomAggregateTest extends SimpleDbTestBase {
 
   int width1 = 2;

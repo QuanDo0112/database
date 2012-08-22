@@ -8,7 +8,15 @@ import java.util.Map;
 import static org.junit.Assert.*;
 import org.junit.Test;
 
-import simpledb.*;
+import simpledb.Database;
+import simpledb.DbException;
+import simpledb.HeapFile;
+import simpledb.IntField;
+import simpledb.Predicate;
+import simpledb.TransactionAbortedException;
+import simpledb.TransactionId;
+import simpledb.Utility;
+import simpledb.test.*;
 
 public abstract class FilterBase extends SimpleDbTestBase {
     private static final int COLUMNS = 3;

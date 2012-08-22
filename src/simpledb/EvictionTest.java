@@ -3,7 +3,6 @@ package simpledb;
 import java.io.IOException;
 import java.util.Arrays;
 
-
 /**
  * Creates a heap file with 1024*500 tuples with two integer fields each.  Clears the buffer pool,
  * and performs a sequential scan through all of the pages.  If the growth in JVM usage

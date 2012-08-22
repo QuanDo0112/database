@@ -5,7 +5,16 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 
-import simpledb.*;
+import simpledb.Aggregate;
+import simpledb.Aggregator;
+import simpledb.Database;
+import simpledb.DbException;
+import simpledb.DbFile;
+import simpledb.HeapFile;
+import simpledb.SeqScan;
+import simpledb.TransactionAbortedException;
+import simpledb.TransactionId;
+import simpledb.test.*;
 
 import org.junit.Test;
 

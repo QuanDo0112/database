@@ -488,11 +488,22 @@ public class SimpleDb {
 			e.printStackTrace();
 		}
 	}
+	
+	public void joinTests() {
+		CustomJoinTest test = new CustomJoinTest();
+		try {
+			test.createTupleLists();
+			test.gtJoin();
+		} catch (Exception e) {
+			System.out.println("Error running join tests " + e.toString());
+			e.printStackTrace();
+		}
+	}
 
     public static void customTests() {
     	try {
     		SimpleDb simpledb = new SimpleDb();
-    		simpledb.queryTest();
+    		simpledb.joinTests();
     	} catch (Exception e) {
     		e.printStackTrace();
     		System.out.println(e);

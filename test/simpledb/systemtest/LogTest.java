@@ -5,7 +5,23 @@ import java.util.*;
 
 import org.junit.Test;
 
-import simpledb.*;
+import simpledb.Database;
+import simpledb.DbException;
+import simpledb.HeapFile;
+import simpledb.HeapPage;
+import simpledb.HeapPageId;
+import simpledb.Insert;
+import simpledb.IntField;
+import simpledb.Page;
+import simpledb.Permissions;
+import simpledb.SeqScan;
+import simpledb.Transaction;
+import simpledb.TransactionAbortedException;
+import simpledb.Tuple;
+import simpledb.TupleDesc;
+import simpledb.TupleIterator;
+import simpledb.Utility;
+import simpledb.test.*;
 
 import static org.junit.Assert.*;
 

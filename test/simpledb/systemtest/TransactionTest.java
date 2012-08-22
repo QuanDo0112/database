@@ -11,7 +11,22 @@ import java.util.Arrays;
 
 import org.junit.Test;
 
-import simpledb.*;
+import simpledb.Database;
+import simpledb.DbException;
+import simpledb.DbFile;
+import simpledb.DbFileIterator;
+import simpledb.Delete;
+import simpledb.HeapFile;
+import simpledb.Insert;
+import simpledb.IntField;
+import simpledb.Query;
+import simpledb.SeqScan;
+import simpledb.Transaction;
+import simpledb.TransactionAbortedException;
+import simpledb.TransactionId;
+import simpledb.Tuple;
+import simpledb.TupleIterator;
+import simpledb.test.*;
 
 import static org.junit.Assert.*;
 

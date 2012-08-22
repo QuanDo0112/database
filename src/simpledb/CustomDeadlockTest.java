@@ -1,7 +1,6 @@
 package simpledb;
 
 import simpledb.TestUtil.LockGrabber;
-
 import java.util.*;
 
 public class CustomDeadlockTest extends TestUtil.CreateHeapFile {

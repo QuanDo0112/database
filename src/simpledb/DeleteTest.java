@@ -4,6 +4,7 @@ package simpledb;
 import java.io.IOException;
 import java.util.ArrayList;
 
+
 public class DeleteTest extends FilterBase {
     ArrayList<ArrayList<Integer>> expectedTuples = null;
 

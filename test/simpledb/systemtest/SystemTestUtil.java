@@ -10,7 +10,23 @@ import java.util.UUID;
 
 import org.junit.Assert;
 
-import simpledb.*;
+import simpledb.BufferPool;
+import simpledb.Database;
+import simpledb.DbException;
+import simpledb.DbFile;
+import simpledb.DbIterator;
+import simpledb.Debug;
+import simpledb.HeapFile;
+import simpledb.HeapFileEncoder;
+import simpledb.IntField;
+import simpledb.SeqScan;
+import simpledb.TransactionAbortedException;
+import simpledb.TransactionId;
+import simpledb.Tuple;
+import simpledb.TupleDesc;
+import simpledb.Type;
+import simpledb.Utility;
+import simpledb.test.*;
 
 public class SystemTestUtil {
     public static final TupleDesc SINGLE_INT_DESCRIPTOR =

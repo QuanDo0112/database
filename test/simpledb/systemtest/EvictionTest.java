@@ -8,7 +8,19 @@ import java.util.Arrays;
 import org.junit.Test;
 
 import junit.framework.Assert;
-import simpledb.*;
+import simpledb.Database;
+import simpledb.DbException;
+import simpledb.HeapFile;
+import simpledb.Insert;
+import simpledb.IntField;
+import simpledb.SeqScan;
+import simpledb.Transaction;
+import simpledb.TransactionAbortedException;
+import simpledb.Tuple;
+import simpledb.TupleDesc;
+import simpledb.TupleIterator;
+import simpledb.Utility;
+import simpledb.test.*;
 
 /**
  * Creates a heap file with 1024*500 tuples with two integer fields each.  Clears the buffer pool,
