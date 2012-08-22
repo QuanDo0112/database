@@ -36,4 +36,8 @@ public class JoinPredicate {
     	//System.out.println("Left: " + leftField + " right: " + rightField);
     	return leftField.compare(_op, rightField);
     }
+    
+    public Predicate.Op getOp() {
+    	return _op;
+    }
 }

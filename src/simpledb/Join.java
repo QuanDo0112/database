@@ -5,12 +5,9 @@ import java.util.*;
  * The Join operator implements the relational join operation.
  */
 public class Join extends Operator {
-	private JoinPredicate _predicate;
-	private DbIterator _leftChild;
-	private DbIterator _rightChild;
+	private Join _joinOperator;
 	
-	private Tuple _leftRecent;
-	private Tuple _rightRecent;
+	public Join() { }
 
     /**
      * Constructor.  Accepts to children to join and the predicate
@@ -21,38 +18,32 @@ public class Join extends Operator {
      * @param child2 Iterator for the right(inner) relation to join
      */
     public Join(JoinPredicate p, DbIterator child1, DbIterator child2) {
-        _predicate = p;
-        _leftChild = child1;
-        _rightChild = child2;
+    	if (isEquiJoin(p)) {
+    		_joinOperator = new HashEquiJoin(p, child1, child2);
+    	} else {
+    		_joinOperator = new NestedLoopJoin(p, child1, child2);
+    	}
+    }
+    
+    private boolean isEquiJoin(JoinPredicate predicate) {
+    	return predicate.getOp() == Predicate.Op.EQUALS;
     }
 
-    /**
-     * @see simpledb.TupleDesc#merge(TupleDesc, TupleDesc) for possible implementation logic.
-     */
     public TupleDesc getTupleDesc() {
-    	TupleDesc left = _leftChild.getTupleDesc();
-    	TupleDesc right = _rightChild.getTupleDesc();
-    	assert (left != null);
-    	assert (right != null);
-        return TupleDesc.merge(_leftChild.getTupleDesc(), _rightChild.getTupleDesc());
+    	return _joinOperator.getTupleDesc();
     }
 
     public void open()
         throws DbException, NoSuchElementException, TransactionAbortedException {
-        _leftChild.open();
-        _rightChild.open();
-        _leftRecent = null;
+    	_joinOperator.open();
     }
 
     public void close() {
-        _leftChild.close();
-        _rightChild.close();
+    	_joinOperator.close();
     }
 
     public void rewind() throws DbException, TransactionAbortedException {
-        _leftChild.rewind();
-        _rightChild.rewind();
-        _leftRecent = null;
+    	_joinOperator.rewind();
     }
 
     /**
@@ -75,51 +66,6 @@ public class Join extends Operator {
      * @see JoinPredicate#filter
      */
     protected Tuple fetchNext() throws TransactionAbortedException, DbException {
-    	Tuple left = _leftRecent;
-    	assert (_leftChild != null);
-    	assert (_rightChild != null);
-    	    	
-    	if (left == null && _leftChild.hasNext()) {
-    		left = _leftChild.next();
-    		_rightChild.rewind();
-    	}
-    	
-    	while (_leftChild.hasNext() || _rightChild.hasNext()) {
-    		//System.out.println("Left is: " + left);
-    		while (_rightChild.hasNext()) {
-    			Tuple right = _rightChild.next();
-    			if (_predicate.filter(left, right)) {
-    				_leftRecent = left;
-    				return joinTuple(left, right, this.getTupleDesc());
-    			}
-    		}
-    		
-    		if (_leftChild.hasNext()) {
-    			_rightChild.rewind();
-    			left = _leftChild.next();
-    		}
-    		
-    		_leftRecent = left;
-    	}
-    	
-    	_leftRecent = null;
-        return null;
-    }
-    
-    private Tuple joinTuple(Tuple left, Tuple right, TupleDesc tupleDesc) {
-    	int numFields = tupleDesc.numFields();
-    	int leftFields = left.getTupleDesc().numFields();
-    	Tuple result = new Tuple(tupleDesc);
-    	    	
-    	int i = 0;
-    	for (i = 0; i < leftFields; i++) {
-    		result.setField(i, left.getField(i));
-    	}
-    	assert (i - leftFields == 0);
-    	for ( ; i < numFields; i++) {
-    		result.setField(i, right.getField(i - leftFields));
-    	}
-    	
-    	return result;
+    	return _joinOperator.fetchNext();
     }
 }

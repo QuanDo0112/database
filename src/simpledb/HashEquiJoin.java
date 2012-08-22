@@ -4,7 +4,7 @@ import java.util.*;
 /**
  * The Join operator implements the relational join operation.
  */
-public class HashEquiJoin extends Operator {
+public class HashEquiJoin extends Join {
     JoinPredicate pred;
     DbIterator child1, child2;
     TupleDesc comboTD;

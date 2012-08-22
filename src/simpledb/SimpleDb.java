@@ -492,7 +492,7 @@ public class SimpleDb {
     public static void customTests() {
     	try {
     		SimpleDb simpledb = new SimpleDb();
-    		simpledb.aggregateTests();
+    		simpledb.queryTest();
     	} catch (Exception e) {
     		e.printStackTrace();
     		System.out.println(e);
