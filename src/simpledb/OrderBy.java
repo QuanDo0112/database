@@ -58,8 +58,9 @@ public class OrderBy extends Operator {
         throws NoSuchElementException, TransactionAbortedException, DbException {
         if (it != null && it.hasNext()) {
             return it.next();
-        } else
+        } else {
             return null;
+        }
     }
 }
 

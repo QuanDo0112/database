@@ -96,10 +96,13 @@ public class HashEquiJoin extends Join {
 
         // set fields in combined tuple
         Tuple t = new Tuple(comboTD);
-        for(int i=0; i < td1n; i++)
+        for(int i=0; i < td1n; i++) {
             t.setField(i, t1.getField(i));
-        for(int i=0; i < td2n; i++)
+        }
+        
+        for(int i=0; i < td2n; i++) {
             t.setField(td1n + i, t2.getField(i));
+        }
         return t;
 
     }
@@ -117,12 +120,10 @@ public class HashEquiJoin extends Join {
             // if match, create a combined tuple and fill it with the values
             // from both tuples
             ArrayList<Tuple> l = map.get(t2.getField(pred._rightField));
-            if (l == null)
-                continue;
+            if (l == null) continue;
             listIt = l.iterator();
-
+            
             return processList();
-
         }
 
         // child2 is done: advance child1

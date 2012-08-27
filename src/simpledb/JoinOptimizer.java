@@ -34,9 +34,7 @@ public class JoinOptimizer {
      *  @param plan2 The right join node's child
      */
     public DbIterator instantiateJoin(LogicalJoinNode lj, DbIterator plan1, DbIterator plan2, HashMap<String, TableStats> stats) throws ParsingException {
-
         int t1id=0, t2id=0;
-        DbIterator j;
 
         try {
             t1id = plan1.getTupleDesc().fieldNameToIndex(p.disambiguateName(lj.f1));
@@ -54,12 +52,8 @@ public class JoinOptimizer {
             }
         }
         
-        JoinPredicate p = new JoinPredicate(t1id,lj.p,t2id);
-       
-        j = new Join(p,plan1,plan2);
-        
-        return j;
-
+        JoinPredicate predicate = new JoinPredicate(t1id,lj.p,t2id);
+        return new Join(predicate, plan1, plan2);
     }
     
     /**
@@ -119,7 +113,6 @@ public class JoinOptimizer {
 			{
 				if (t1pkey) return card2;
 				if (t2pkey) return card1;
-        	
 				if (card1 > card2) return card1;
 				return card2;
 			}
